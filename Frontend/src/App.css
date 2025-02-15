@@ -1,0 +1,157 @@
+/* Reset some basic styles */
+body, html, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #f4f7fa;
+}
+
+/* Header */
+.header {
+  background-color: #2d3e50;
+  color: #fff;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+.user-id {
+  margin-top: 10px;
+}
+.user-id input {
+  padding: 8px;
+  border: none;
+  border-radius: 4px;
+}
+
+/* Main layout */
+.main-content {
+  display: flex;
+  height: calc(100% - 100px);
+}
+
+/* Sidebar for filters */
+.sidebar {
+  background-color: #fff;
+  padding: 20px;
+  width: 300px;
+  border-right: 1px solid #e0e0e0;
+}
+.sidebar h2 {
+  margin-top: 0;
+}
+.form-group {
+  margin-bottom: 15px;
+}
+.form-group label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 5px;
+  color: #2d3e50; /* Updated label color */
+}
+.input-row {
+  display: flex;
+  gap: 10px;
+}
+.input-row input {
+  flex: 1;
+}
+.sidebar input {
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.button-row {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+.btn {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn.primary {
+  background-color: #2d89ef;
+  color: #fff;
+}
+.btn.secondary {
+  background-color: #6c757d;
+  color: #fff;
+}
+.btn.danger {
+  background-color: #e74c3c;
+  color: #fff;
+}
+
+/* Content area */
+.content-area {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* Tabs */
+.tabs {
+  margin-bottom: 20px;
+}
+.tab {
+  padding: 10px 20px;
+  margin-right: 10px;
+  background-color: #e0e0e0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.tab.active {
+  background-color: #2d89ef;
+  color: #fff;
+}
+
+/* Compound cards */
+.card-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+.compound-card {
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+  padding: 15px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.compound-card h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #2d3e50;
+}
+.compound-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #555;
+}
+.structure {
+  text-align: center;
+}
+.structure img {
+  max-width: 100%;
+  border-radius: 4px;
+}
+.placeholder {
+  text-align: center;
+  font-size: 1rem;
+  color: #777;
+  margin-top: 50px;
+}
