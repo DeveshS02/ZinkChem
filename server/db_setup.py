@@ -1,4 +1,3 @@
-# db_setup.py
 import pandas as pd
 from pymongo import MongoClient
 from rdkit import Chem
@@ -41,6 +40,7 @@ def create_db():
 
     # Read CSV (CSV should have columns: SMILES, logP, QED, SAS)
     df = pd.read_csv("compounds.csv").head(1000)
+    df['smiles']= df['smiles'].apply(lambda s: s.replace('\n',''))
     compounds = []
     for index, row in df.iterrows():
         smiles = row['smiles']

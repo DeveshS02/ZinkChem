@@ -1,15 +1,19 @@
-# main.py
-from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi import FastAPI, HTTPException, Depends, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import OAuth2PasswordBearer
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel
-from typing import Optional, List, Any
-import os
+from typing import Optional, List, Any, Dict
 from bson import ObjectId
+from datetime import datetime, timedelta
+import jwt as pyjwt  # Rename import to avoid confusion
+from passlib.context import CryptContext
 
+# -------------------------
+# Configuration & Setup
+# -------------------------
 app = FastAPI()
 
-# Allow CORS from anywhere.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,14 +22,53 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# MongoDB connection details (update with your connection string or set MONGO_DETAILS in your environment)
-MONGO_DETAILS = os.environ.get("MONGO_DETAILS", "mongodb+srv://2002deveshsharma:BruhPass@cluster0.lkydcsf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-client = AsyncIOMotorClient(MONGO_DETAILS)
+# MongoDB connection.
+client = AsyncIOMotorClient("mongodb+srv://2002deveshsharma:BruhPass@cluster0.lkydcsf.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
 db = client["chemical_db"]
 compounds_collection = db["compounds"]
 favorites_collection = db["favorites"]
+users_collection = db["users"]
 
-# Pydantic models for validation.
+# Password hashing.
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# JWT settings.
+SECRET_KEY = "your-secret-key"  # Change this in production!
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = pyjwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)  # Use pyjwt instead of jwt
+    return encoded_jwt
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    credentials_exception = HTTPException(
+        status_code=401,
+        detail="Could not validate credentials",
+    )
+    try:
+        payload = pyjwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])  # Use pyjwt instead of jwt
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except pyjwt.PyJWTError:  # Update exception class
+        raise credentials_exception
+    user = await users_collection.find_one({"username": username})
+    if user is None:
+        raise credentials_exception
+    return user
+
+# -------------------------
+# Pydantic Models
+# -------------------------
 class CompoundModel(BaseModel):
     id: Optional[str]
     smiles: str
@@ -38,17 +81,28 @@ class CompoundModel(BaseModel):
     structure_image: str
 
 class FavoriteModel(BaseModel):
-    user_id: str
     compound_id: str
 
-# Helper function to convert Mongo documents.
+class UserModel(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class LoginModel(BaseModel):
+    username: str
+    password: str
+
+# -------------------------
+# Helper Functions
+# -------------------------
 def compound_helper(compound) -> dict:
     compound["id"] = str(compound["_id"])
     del compound["_id"]
     return compound
 
-# Endpoint: GET /compounds  
-# Supports filtering by logP, QED, SAS ranges, by solubility flag, and by SMILES substring.
+# -------------------------
+# Compound Endpoints
+# -------------------------
 @app.get("/compounds", response_model=List[Any])
 async def get_compounds(
     logp_min: Optional[float] = None,
@@ -61,11 +115,9 @@ async def get_compounds(
     smile: Optional[str] = None
 ):
     query = {}
-    # If searching by SMILES substring:
     if smile:
         query["smiles"] = {"$regex": smile, "$options": "i"}
     
-    # Apply logP filter.
     if solubility:
         if solubility.lower() == "good":
             query["logP"] = {"$lte": 3.0}
@@ -79,7 +131,6 @@ async def get_compounds(
             if logp_max is not None:
                 query["logP"]["$lte"] = logp_max
 
-    # QED filter.
     if qed_min is not None or qed_max is not None:
         query["qed"] = {}
         if qed_min is not None:
@@ -87,7 +138,6 @@ async def get_compounds(
         if qed_max is not None:
             query["qed"]["$lte"] = qed_max
 
-    # SAS filter.
     if sas_min is not None or sas_max is not None:
         query["sas"] = {}
         if sas_min is not None:
@@ -101,14 +151,13 @@ async def get_compounds(
         compounds.append(compound_helper(compound))
     return compounds
 
-# Endpoint: GET /favorites?user_id=...  
-# Returns the favorite compounds for a given user.
+# -------------------------
+# Favorites Endpoints (Require Auth)
+# -------------------------
 @app.get("/favorites", response_model=List[Any])
-async def get_favorites(user_id: str = Query(...)):
-    fav_cursor = favorites_collection.find({"user_id": user_id})
-    favs = []
-    async for fav in fav_cursor:
-        favs.append(fav)
+async def get_favorites(current_user: dict = Depends(get_current_user)):
+    username = current_user["username"]
+    favs = await favorites_collection.find({"user_id": username}).to_list(length=None)
     compounds_list = []
     for fav in favs:
         compound_obj = await compounds_collection.find_one({"_id": ObjectId(fav["compound_id"])})
@@ -116,42 +165,70 @@ async def get_favorites(user_id: str = Query(...)):
             compounds_list.append(compound_helper(compound_obj))
     return compounds_list
 
-# Endpoint: POST /favorites  
-# Adds a compound to the favorites list for a given user.
 @app.post("/favorites")
-async def add_favorite(fav: FavoriteModel):
-    # Check if this favorite already exists.
+async def add_favorite(fav: FavoriteModel, current_user: dict = Depends(get_current_user)):
+    username = current_user["username"]
     existing = await favorites_collection.find_one({
-        "user_id": fav.user_id, 
+        "user_id": username, 
         "compound_id": fav.compound_id
     })
     if existing:
         raise HTTPException(status_code=400, detail="Favorite already exists")
     fav_dict = fav.dict()
-    # Convert compound_id string to ObjectId.
     try:
         fav_dict["compound_id"] = ObjectId(fav_dict["compound_id"])
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid compound_id")
+    fav_dict["user_id"] = username
     result = await favorites_collection.insert_one(fav_dict)
     if result.inserted_id:
         return {"message": "Added to favorites"}
     else:
         raise HTTPException(status_code=500, detail="Failed to add favorite")
 
-# Endpoint: DELETE /favorites/{favorite_id}?user_id=...
-# Deletes a favorite entry for a given user.
 @app.delete("/favorites/{favorite_id}")
-async def delete_favorite(favorite_id: str, user_id: str = Query(...)):
+async def delete_favorite(favorite_id: str, current_user: dict = Depends(get_current_user)):
     try:
         fav_obj_id = ObjectId(favorite_id)
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid favorite_id")
-    result = await favorites_collection.delete_one({"_id": fav_obj_id, "user_id": user_id})
+    username = current_user["username"]
+    result = await favorites_collection.delete_one({"_id": fav_obj_id, "user_id": username})
     if result.deleted_count:
         return {"message": "Removed from favorites"}
     else:
         raise HTTPException(status_code=404, detail="Favorite not found")
+
+# -------------------------
+# Authentication Endpoints
+# -------------------------
+@app.post("/register")
+async def register(user: UserModel):
+    existing_user = await users_collection.find_one({
+        "$or": [{"username": user.username}, {"email": user.email}]
+    })
+    if existing_user:
+        raise HTTPException(status_code=400, detail="User already exists")
+    hashed_password = pwd_context.hash(user.password)
+    user_dict = user.dict()
+    user_dict["password"] = hashed_password
+    result = await users_collection.insert_one(user_dict)
+    if result.inserted_id:
+        # Optionally, automatically log in the user upon registration.
+        access_token = create_access_token(data={"sub": user.username})
+        return {"access_token": access_token, "token_type": "bearer", "message": "User registered successfully"}
+    else:
+        raise HTTPException(status_code=500, detail="User registration failed")
+
+@app.post("/login")
+async def login(user: LoginModel):
+    existing_user = await users_collection.find_one({"username": user.username})
+    if not existing_user:
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    if not pwd_context.verify(user.password, existing_user["password"]):
+        raise HTTPException(status_code=400, detail="Invalid credentials")
+    access_token = create_access_token(data={"sub": user.username})
+    return {"access_token": access_token, "token_type": "bearer", "message": "Login successful"}
 
 if __name__ == "__main__":
     import uvicorn

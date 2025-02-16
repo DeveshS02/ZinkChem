@@ -3,10 +3,20 @@ import axios from 'axios';
 import './App.css';
 
 function App() {
-  // State for compounds, favorites, filters, and user id.
+  // Authentication state.
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authMode, setAuthMode] = useState('login'); // "login" or "register"
+  const [authForm, setAuthForm] = useState({
+    username: '',
+    email: '', // Used for registration.
+    password: '',
+  });
+  const [authError, setAuthError] = useState('');
+  const [token, setToken] = useState('');
+
+  // Compound Explorer state.
   const [compounds, setCompounds] = useState([]);
   const [favorites, setFavorites] = useState([]);
-  const [userId, setUserId] = useState("default_user");
   const [filters, setFilters] = useState({
     logp_min: '',
     logp_max: '',
@@ -19,39 +29,118 @@ function App() {
   });
   const [activeTab, setActiveTab] = useState("results");
 
-  // Fetch compounds with current filters.
+  // Create an Axios instance with a base URL.
+  const axiosInstance = axios.create({
+    baseURL: 'http://localhost:8000'
+  });
+
+  // Attach the JWT token to every request if available.
+  axiosInstance.interceptors.request.use(
+    (config) => {
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
+      return config;
+    },
+    (error) => Promise.reject(error)
+  );
+
+  // ---------------------------
+  // Persist token on reload
+  // ---------------------------
+  useEffect(() => {
+    const storedToken = localStorage.getItem('token');
+    const storedUsername = localStorage.getItem('username');
+    if (storedToken && storedUsername) {
+      setToken(storedToken);
+      setAuthForm((prev) => ({ ...prev, username: storedUsername }));
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  // ---------------------------
+  // Authentication Functions
+  // ---------------------------
+  const handleAuthInputChange = (e) => {
+    setAuthForm({ ...authForm, [e.target.name]: e.target.value });
+  };
+
+  const handleAuthSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    try {
+      if (authMode === 'login') {
+        const res = await axiosInstance.post('/login', {
+          username: authForm.username,
+          password: authForm.password,
+        });
+        const receivedToken = res.data.access_token;
+        setToken(receivedToken);
+        setIsAuthenticated(true);
+        // Store token and username in localStorage.
+        localStorage.setItem('token', receivedToken);
+        localStorage.setItem('username', authForm.username);
+      } else {
+        const res = await axiosInstance.post('/register', {
+          username: authForm.username,
+          email: authForm.email,
+          password: authForm.password,
+        });
+        const receivedToken = res.data.access_token;
+        setToken(receivedToken);
+        setIsAuthenticated(true);
+        localStorage.setItem('token', receivedToken);
+        localStorage.setItem('username', authForm.username);
+      }
+    } catch (error) {
+      setAuthError(error.response?.data.detail || "Authentication failed");
+    }
+  };
+
+  // Logout function clears token from state and localStorage.
+  const handleLogout = () => {
+    setToken('');
+    setIsAuthenticated(false);
+    setAuthForm({ username: '', email: '', password: '' });
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+  };
+
+  // ---------------------------
+  // Compound & Favorites Functions
+  // ---------------------------
   const fetchCompounds = async () => {
     try {
       const params = {};
-      Object.keys(filters).forEach(key => {
+      Object.keys(filters).forEach((key) => {
         if (filters[key]) {
           params[key] = filters[key];
         }
       });
-      const res = await axios.get('http://localhost:8000/compounds', { params });
+      const res = await axiosInstance.get('/compounds', { params });
       setCompounds(res.data);
     } catch (error) {
       console.error("Error fetching compounds:", error);
     }
   };
 
-  // Fetch favorites for the current user.
   const fetchFavorites = async () => {
     try {
-      const res = await axios.get('http://localhost:8000/favorites', { params: { user_id: userId } });
+      const res = await axiosInstance.get('/favorites');
       setFavorites(res.data);
     } catch (error) {
       console.error("Error fetching favorites:", error);
     }
   };
 
-  // Update favorites when userId changes.
   useEffect(() => {
-    fetchFavorites();
-  }, [userId]);
+    if (isAuthenticated) {
+      fetchFavorites();
+    }
+  }, [isAuthenticated, token]);
 
   const handleFilterChange = (e) => {
-    setFilters({...filters, [e.target.name]: e.target.value});
+    setFilters({ ...filters, [e.target.name]: e.target.value });
   };
 
   const handleSearch = (e) => {
@@ -66,10 +155,7 @@ function App() {
 
   const addFavorite = async (compoundId) => {
     try {
-      await axios.post('http://localhost:8000/favorites', {
-        user_id: userId,
-        compound_id: compoundId
-      });
+      await axiosInstance.post('/favorites', { compound_id: compoundId });
       fetchFavorites();
     } catch (error) {
       console.error("Error adding favorite:", error);
@@ -78,25 +164,91 @@ function App() {
 
   const removeFavorite = async (favoriteId) => {
     try {
-      await axios.delete(`http://localhost:8000/favorites/${favoriteId}`, { params: { user_id: userId } });
+      await axiosInstance.delete(`/favorites/${favoriteId}`);
       fetchFavorites();
     } catch (error) {
       console.error("Error removing favorite:", error);
     }
   };
 
+  // ---------------------------
+  // Render Authentication Form if not logged in
+  // ---------------------------
+  if (!isAuthenticated) {
+    return (
+      <div className="auth-container">
+        <h1>{authMode === 'login' ? "Login" : "Register"}</h1>
+        <form onSubmit={handleAuthSubmit} className="auth-form">
+          <div className="form-group">
+            <label>Username</label>
+            <input 
+              type="text" 
+              name="username" 
+              value={authForm.username} 
+              onChange={handleAuthInputChange} 
+              required 
+            />
+          </div>
+          {authMode === 'register' && (
+            <div className="form-group">
+              <label>Email</label>
+              <input 
+                type="email" 
+                name="email" 
+                value={authForm.email} 
+                onChange={handleAuthInputChange} 
+                required 
+              />
+            </div>
+          )}
+          <div className="form-group">
+            <label>Password</label>
+            <input 
+              type="password" 
+              name="password" 
+              value={authForm.password} 
+              onChange={handleAuthInputChange} 
+              required 
+            />
+          </div>
+          {authError && <p className="error">{authError}</p>}
+          <div className="button-row">
+            <button type="submit" className="btn primary">
+              {authMode === 'login' ? "Login" : "Register"}
+            </button>
+          </div>
+        </form>
+        <div className="toggle-auth">
+          {authMode === 'login' ? (
+            <>
+              <p>Don't have an account?</p>
+              <button className="btn secondary" onClick={() => { setAuthMode('register'); setAuthError(''); }}>
+                Register
+              </button>
+            </>
+          ) : (
+            <>
+              <p>Already have an account?</p>
+              <button className="btn secondary" onClick={() => { setAuthMode('login'); setAuthError(''); }}>
+                Login
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------
+  // Render Main App (Compound Explorer) once authenticated
+  // ---------------------------
   return (
     <div className="app-container">
       <header className="header">
         <h1>Chemical Compound Explorer</h1>
         <div className="user-id">
-          <label>User ID: </label>
-          <input 
-            type="text" 
-            value={userId} 
-            onChange={(e) => setUserId(e.target.value)} 
-            placeholder="Enter your user id" 
-          />
+          <p>Logged in as: <strong>{authForm.username}</strong></p>
+          <button className="btn secondary" onClick={handleLogout}>Logout</button>
         </div>
       </header>
 
