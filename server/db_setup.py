@@ -39,7 +39,7 @@ def create_db():
     compounds_collection.delete_many({})
 
     # Read CSV (CSV should have columns: SMILES, logP, QED, SAS)
-    df = pd.read_csv("compounds.csv").head(1000)
+    df = pd.read_csv("compounds.csv").head(10000)
     df['smiles']= df['smiles'].apply(lambda s: s.replace('\n',''))
     compounds = []
     for index, row in df.iterrows():

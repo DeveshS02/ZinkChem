@@ -8,6 +8,7 @@ from bson import ObjectId
 from datetime import datetime, timedelta
 import jwt as pyjwt  # Rename import to avoid confusion
 from passlib.context import CryptContext
+import re
 
 # -------------------------
 # Configuration & Setup
@@ -110,17 +111,23 @@ async def get_compounds(
     solubility: Optional[str] = None,  # "good" or "poor"
     qed_min: Optional[float] = None,
     qed_max: Optional[float] = None,
+    druglikeness: Optional[str] = None,  # "high", "moderate", "low"
     sas_min: Optional[float] = None,
     sas_max: Optional[float] = None,
+    synthesizability: Optional[str] = None,  # "easy", "moderate", "hard"
     smile: Optional[str] = None
 ):
     query = {}
+
+    # SMILES search
     if smile:
-        query["smiles"] = {"$regex": smile, "$options": "i"}
-    
+        escaped_smile = re.escape(smile)
+        query["smiles"] = {"$regex": escaped_smile, "$options": "i"}
+
+    # logP / Solubility
     if solubility:
         if solubility.lower() == "good":
-            query["logP"] = {"$lte": 3.0}
+            query["logP"] = {"$gte": 0, "$lte": 3.0}
         elif solubility.lower() == "poor":
             query["logP"] = {"$gt": 3.0}
     else:
@@ -131,25 +138,44 @@ async def get_compounds(
             if logp_max is not None:
                 query["logP"]["$lte"] = logp_max
 
-    if qed_min is not None or qed_max is not None:
-        query["qed"] = {}
-        if qed_min is not None:
-            query["qed"]["$gte"] = qed_min
-        if qed_max is not None:
-            query["qed"]["$lte"] = qed_max
+    # QED / Drug Likeness
+    if druglikeness:
+        if druglikeness.lower() == "high":
+            query["qed"] = {"$gt": 0.67}
+        elif druglikeness.lower() == "moderate":
+            query["qed"] = {"$gt": 0.5, "$lte": 0.67}
+        elif druglikeness.lower() == "low":
+            query["qed"] = {"$lte": 0.5}
+    else:
+        if qed_min is not None or qed_max is not None:
+            query["qed"] = {}
+            if qed_min is not None:
+                query["qed"]["$gte"] = qed_min
+            if qed_max is not None:
+                query["qed"]["$lte"] = qed_max
 
-    if sas_min is not None or sas_max is not None:
-        query["sas"] = {}
-        if sas_min is not None:
-            query["sas"]["$gte"] = sas_min
-        if sas_max is not None:
-            query["sas"]["$lte"] = sas_max
+    # SAS / Synthesizability
+    if synthesizability:
+        if synthesizability.lower() == "easy":
+            query["sas"] = {"$gte": 1, "$lte": 3}
+        elif synthesizability.lower() == "moderate":
+            query["sas"] = {"$gt": 3, "$lte": 6}
+        elif synthesizability.lower() == "hard":
+            query["sas"] = {"$gt": 6}
+    else:
+        if sas_min is not None or sas_max is not None:
+            query["sas"] = {}
+            if sas_min is not None:
+                query["sas"]["$gte"] = sas_min
+            if sas_max is not None:
+                query["sas"]["$lte"] = sas_max
 
     compounds_cursor = compounds_collection.find(query)
     compounds = []
     async for compound in compounds_cursor:
         compounds.append(compound_helper(compound))
     return compounds
+
 
 # -------------------------
 # Favorites Endpoints (Require Auth)
@@ -162,8 +188,12 @@ async def get_favorites(current_user: dict = Depends(get_current_user)):
     for fav in favs:
         compound_obj = await compounds_collection.find_one({"_id": ObjectId(fav["compound_id"])})
         if compound_obj:
-            compounds_list.append(compound_helper(compound_obj))
+            compound_data = compound_helper(compound_obj)
+            # Attach favorite record id to the returned compound data.
+            compound_data['favorite_id'] = str(fav['_id'])
+            compounds_list.append(compound_data)
     return compounds_list
+
 
 @app.post("/favorites")
 async def add_favorite(fav: FavoriteModel, current_user: dict = Depends(get_current_user)):

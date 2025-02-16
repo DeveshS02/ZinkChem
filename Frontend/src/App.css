@@ -1,78 +1,172 @@
-/* Reset some basic styles */
+/* src/App.css */
+
+/* Reset & Global Styles */
 body, html, #root {
   margin: 0;
   padding: 0;
-  height: 100%;
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: Arial, sans-serif;
   background-color: #f4f7fa;
 }
 
-/* Header */
-.header {
+/* Navbar */
+.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   background-color: #2d3e50;
   color: #fff;
-  padding: 20px;
+  padding: 15px 20px;
+}
+.navbar-brand {
+  font-size: 1.5rem;
+}
+.navbar-user span {
+  margin-right: 10px;
+}
+
+/* Main Layout */
+.app-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
+  width: 100vw;
+  height: 100vh;
 }
-.header h1 {
-  margin: 0;
-  font-size: 2rem;
-}
-.user-id {
-  margin-top: 10px;
-}
-.user-id input {
-  padding: 8px;
-  border: none;
-  border-radius: 4px;
-}
-
-/* Main layout */
 .main-content {
   display: flex;
-  height: calc(100% - 100px);
+  flex: 1;
+  overflow: hidden;
 }
 
-/* Sidebar for filters */
+/* Sidebar */
 .sidebar {
   background-color: #fff;
   padding: 20px;
-  width: 300px;
+  width: 280px;
   border-right: 1px solid #e0e0e0;
+  overflow-y: auto;
 }
 .sidebar h2 {
   margin-top: 0;
 }
-.form-group {
+.sidebar .form-group {
   margin-bottom: 15px;
 }
-.form-group label {
+.sidebar label {
   display: block;
-  font-weight: bold;
   margin-bottom: 5px;
-  color: #2d3e50; /* Updated label color */
+  font-weight: bold;
 }
-.input-row {
+.sidebar .input-row {
   display: flex;
   gap: 10px;
-}
-.input-row input {
-  flex: 1;
 }
 .sidebar input {
   width: 100%;
   padding: 8px;
-  box-sizing: border-box;
   border: 1px solid #ccc;
   border-radius: 4px;
 }
-.button-row {
+.sidebar .button-row {
   display: flex;
   gap: 10px;
   margin-top: 15px;
 }
+
+/* Content Area */
+.content-area {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+}
+
+/* Tabs */
+.tabs {
+  margin-bottom: 20px;
+}
+.tab {
+  padding: 10px 20px;
+  background-color: #e0e0e0;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-right: 10px;
+}
+.tab.active {
+  background-color: #2d89ef;
+  color: #fff;
+}
+
+/* Card Container & Compound Card */
+.card-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+.compound-card {
+  background-color: #fff;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.compound-card h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #2d3e50;
+}
+.compound-card p {
+  margin: 5px 0;
+  font-size: 0.9rem;
+  color: #555;
+}
+.compound-card .structure {
+  text-align: center;
+  margin: 10px 0;
+}
+.compound-card .structure img {
+  max-width: 100%;
+  border-radius: 4px;
+}
+
+/* Update the SMILES text styling so that long words break */
+.compound-smiles {
+  font-size: 1.2rem;
+  color: #2d3e50;
+  word-break: break-word;  /* Breaks long words onto new lines */
+  overflow-wrap: break-word;
+  white-space: normal;
+}
+/* Auth Form */
+.auth-container {
+  max-width: 400px;
+  margin: 50px auto;
+  padding: 20px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+.auth-form .form-group {
+  margin-bottom: 15px;
+}
+.auth-form label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+}
+.auth-form input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+.auth-form .button-row {
+  margin-top: 15px;
+}
+.error {
+  color: red;
+  font-size: 0.9rem;
+}
+
+/* Buttons */
 .btn {
   padding: 10px 15px;
   border: none;
@@ -92,66 +186,26 @@ body, html, #root {
   color: #fff;
 }
 
-/* Content area */
-.content-area {
-  flex: 1;
-  padding: 20px;
-  overflow-y: auto;
+/* Responsive */
+@media (max-width: 768px) {
+  .main-content {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    border-right: none;
+    border-bottom: 1px solid #e0e0e0;
+  }
 }
 
-/* Tabs */
-.tabs {
-  margin-bottom: 20px;
-}
-.tab {
-  padding: 10px 20px;
-  margin-right: 10px;
-  background-color: #e0e0e0;
-  border: none;
+.reference {
+  background-color: #f9f9f9;
+  padding: 10px;
+  margin-top: 15px;
   border-radius: 4px;
-  cursor: pointer;
+  font-size: 0.85rem;
+  color: #333;
 }
-.tab.active {
-  background-color: #2d89ef;
-  color: #fff;
-}
-
-/* Compound cards */
-.card-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 20px;
-}
-.compound-card {
-  background-color: #fff;
-  border-radius: 8px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-  padding: 15px;
-  width: 300px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.compound-card h3 {
-  margin: 0;
-  font-size: 1.2rem;
-  color: #2d3e50;
-}
-.compound-card p {
-  margin: 0;
-  font-size: 0.9rem;
-  color: #555;
-}
-.structure {
-  text-align: center;
-}
-.structure img {
-  max-width: 100%;
-  border-radius: 4px;
-}
-.placeholder {
-  text-align: center;
-  font-size: 1rem;
-  color: #777;
-  margin-top: 50px;
+.reference h4 {
+  margin: 0 0 5px;
 }
